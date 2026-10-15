@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accessible Travel Planner</title>
+<style>
+  :root {
+    --bg: #1f2b3d; --card: #2a384e; --line: #3d4f6b; --text: #f2f6fb; --muted: #a9b9cf;
+    --accent: #3896d2; --good: #6fcf97; --bad: #e5736b; --warn: #f2b84b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; color: var(--accent); }
+  p.sub { margin: 0 0 20px; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-weight: 600; margin-bottom: 6px; }
+  input, textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
+  textarea { min-height: 110px; resize: vertical; }
+  .hint { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+  .chip { background: transparent; color: var(--text); border: 1px solid var(--accent); border-radius: 999px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: 14px; }
+  .chip:hover { background: var(--accent); }
+  button.go { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 12px 20px; font: inherit; font-weight: 600; cursor: pointer; margin-top: 12px; }
+  button.go:disabled { opacity: .6; cursor: wait; }
+  #status { font-size: 14px; color: var(--muted); margin-bottom: 8px; min-height: 20px; }
+  #status.ok { color: var(--good); } #status.err { color: var(--bad); }
+  pre { white-space: pre-wrap; word-break: break-word; margin: 0; font: 14px/1.5 Consolas, "Courier New", monospace; }
+  .verdict { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  .verdict.ok { background: rgba(111,207,151,.18); color: var(--good); }
+  .verdict.bad { background: rgba(229,115,107,.18); color: var(--bad); }
+  details summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+  details pre { margin-top: 10px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Accessible Travel Planner</h1>
+  <p class="sub">A team of AI agents built in n8n. This page only sends your request to the team's webhook and shows the answer. Flights are SFO to Lisbon only.</p>
+
+  <div class="card">
+    <label for="url">Your n8n webhook URL</label>
+    <input id="url" type="url" placeholder="https://your-name.app.n8n.cloud/webhook/travel-planner" autocomplete="off">
+    <div class="hint">Use the <b>Production</b> URL of your Webhook node. The workflow must be published. This page keeps it in your browser only.</div>
+  </div>
+
+  <div class="card">
+    <label for="msg">Trip request</label>
+    <textarea id="msg"></textarea>
+    <div class="chips" id="chips"></div>
+    <button class="go" id="go">Plan my trip</button>
+  </div>
+
+  <div class="card">
+    <div id="status">Waiting for a request.</div>
+    <div id="out"></div>
+  </div>
+
+  <details class="card">
+    <summary>How this page talks to n8n</summary>
+    <pre id="how"></pre>
+  </details>
+</main>
+
+<script>
+  // Example requests. They match the five tests of the travel team.
+  const EXAMPLES = [
+    ["Happy path", "Plan a trip from SFO to Lisbon on Oct 12, 2026. 3 nights, total budget $900. I need a direct flight, wheelchair assistance, and a hotel with a wheelchair-accessible room and step-free entrance."],
+    ["Other date", "Plan a trip from SFO to Lisbon on Oct 13, 2026. 3 nights, total budget $900. Direct flight, wheelchair assistance, and a wheelchair-accessible hotel with step-free entrance."],
+    ["Budget fails", "Plan a trip from SFO to Lisbon on Oct 12, 2026. 4 nights, total budget $800. Direct flight, wheelchair assistance, wheelchair-accessible room and step-free entrance."],
+    ["No flight fits", "Plan a trip from SFO to Lisbon on Oct 12, 2026. 3 nights, total budget $300. Direct flight, wheelchair assistance, accessible hotel."],
+    ["Wrong city", "Plan a trip from SFO to Paris on Oct 12, 2026, budget $1000."]
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const KEY = "travel-webhook-url";
+
+  // The browser may block storage (private mode), so every use is wrapped.
+  function loadUrl() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
+  function saveUrl(v) { try { localStorage.setItem(KEY, v); } catch (e) { /* ignore */ } }
+
+  function show(text, cls) { const s = $("status"); s.textContent = text; s.className = cls || ""; }
+
+  function renderAnswer(text) {
+    const out = $("out");
+    out.textContent = "";
+    const approved = /OVERALL_VERDICT:\s*APPROVED/i.test(text);
+    const revision = /NEEDS REVISION/i.test(text);
+    if (approved || revision) {
+      const v = document.createElement("div");
+      v.className = "verdict " + (approved ? "ok" : "bad");
+      v.textContent = approved ? "APPROVED" : "NEEDS REVISION";
+      out.appendChild(v);
+    }
+    const pre = document.createElement("pre");
+    pre.textContent = text;           // textContent, never innerHTML: the answer is shown as plain text
+    out.appendChild(pre);
+  }
+
+  function updateHow(url, message) {
+    $("how").textContent =
+      "POST " + (url || "<your webhook URL>") + "\n" +
+      "Content-Type: application/json\n\n" +
+      JSON.stringify({ message: message }, null, 2) +
+      "\n\nn8n answers with JSON like:\n" +
+      JSON.stringify({ output: "...the checked plan..." }, null, 2);
+  }
+
+  async function send() {
+    const url = $("url").value.trim();
+    const message = $("msg").value.trim();
+    if (!url) { show("Paste your webhook URL first.", "err"); return; }
+    if (!message) { show("Type a trip request first.", "err"); return; }
+    saveUrl(url);
+    updateHow(url, message);
+    $("go").disabled = true;
+    $("out").textContent = "";
+    show("Asking the team... this can take 10 to 40 seconds.");
+    const started = performance.now();
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: message })
+      });
+      const secs = ((performance.now() - started) / 1000).toFixed(1);
+      const raw = await res.text();
+      let data = null;
+      try { data = JSON.parse(raw); } catch (e) { /* not JSON */ }
+      if (!res.ok) {
+        show("The server answered with status " + res.status + " after " + secs + " s.", "err");
+        renderAnswer(raw || "(empty answer)");
+        return;
+      }
+      // The Webhook node returns the last node's item, which has an "output" field for an agent.
+      const answer = data && (data.output || data.text || data.message) ? (data.output || data.text || data.message) : raw;
+      show("Done in " + secs + " s. Status " + res.status + ".", "ok");
+      renderAnswer(typeof answer === "string" ? answer : JSON.stringify(answer, null, 2));
+    } catch (e) {
+      show("The request did not reach n8n.", "err");
+      renderAnswer(
+        "Possible reasons:\n" +
+        "1. The URL is wrong, or you used the Test URL instead of the Production URL.\n" +
+        "2. The workflow is not published.\n" +
+        "3. CORS: add this page's address under 'Allowed Origins (CORS)' in the Webhook node.\n\n" +
+        "Technical detail: " + e.message
+      );
+    } finally {
+      $("go").disabled = false;
+    }
+  }
+
+  // Set up the page
+  $("url").value = loadUrl();
+  $("msg").value = EXAMPLES[0][1];
+  EXAMPLES.forEach(function (ex) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = ex[0];
+    b.addEventListener("click", function () { $("msg").value = ex[1]; updateHow($("url").value.trim(), ex[1]); });
+    $("chips").appendChild(b);
+  });
+  $("go").addEventListener("click", send);
+  updateHow($("url").value.trim(), $("msg").value);
+</script>
+</body>
+</html>

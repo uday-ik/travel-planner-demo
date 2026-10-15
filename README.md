@@ -10,7 +10,26 @@ Browser (this page)  --POST {"message": "..."}-->  n8n webhook  -->  5 agents  -
 
 **This page contains no keys and no webhook URL.** Each person types their own webhook URL into the page. Nothing works until they have their own published n8n workflow.
 
-Tested on Windows 11 with Chrome. The Mac steps use the same commands in Terminal and have **not been run on a Mac yet**, so check them once before a live class.
+Tested on Windows 11 with Chrome. The Mac steps use the same commands in Terminal and have **not been run on a Mac yet**, so check them once on a Mac before you rely on them.
+
+---
+
+## Quick start: choose your path
+
+Either way, you make the changes in **your own n8n**. The page cannot do anything until you have a workflow with a webhook that is published.
+
+| | Path 1: use the public page | Path 2: have your own copy of the page |
+|---|---|---|
+| **You use** | https://uday-ik.github.io/travel-planner-demo/ | Your own page, on GitHub Pages or on your own computer |
+| **In n8n** | Add the webhook, publish, copy the Production URL, and allow `https://uday-ik.github.io` as the origin | The same, but allow *your* page's address as the origin |
+| **On GitHub** | Nothing | Fork or clone this repository (and turn on GitHub Pages if you want it online) |
+| **Good for** | Trying it quickly, or showing it to a group with one shared link | Changing the page, or running it without depending on someone else's link |
+
+What you always do in n8n (sections 3 to 6):
+1. Add a **Webhook** node and connect it to the first agent.
+2. **Publish** the workflow and copy the **Production URL**.
+3. Set **Allowed Origins (CORS)** to the address of the page you use.
+4. Paste the Production URL into the page.
 
 ---
 
@@ -26,9 +45,8 @@ Tested on Windows 11 with Chrome. The Mac steps use the same commands in Termina
 9. [Put your own copy on GitHub Pages](#9-put-your-own-copy-on-github-pages)
 10. [Safety and misuse: questions and answers](#10-safety-and-misuse-questions-and-answers)
 11. [Troubleshooting](#11-troubleshooting)
-12. [Instructor checklist for a live class](#12-instructor-checklist-for-a-live-class)
-13. [Test prompts and expected answers](#13-test-prompts-and-expected-answers)
-14. [How it works under the hood](#14-how-it-works-under-the-hood)
+12. [Test prompts and expected answers](#12-test-prompts-and-expected-answers)
+13. [How it works under the hood](#13-how-it-works-under-the-hood)
 
 ---
 
@@ -216,8 +234,8 @@ They need their own n8n workflow with its own webhook. Then they either use the 
 **Why is my Allowed Origins value my GitHub link?**
 Because it names the one website allowed to call your webhook from a browser. It does not stop anyone from opening that same page. They would just be sending requests to *their own* webhook.
 
-**I am the instructor and will clone the repository and run it locally. What do I do?**
-Follow [section 8](#8-run-the-page-on-your-own-computer-windows-and-mac). Set Allowed Origins to `http://localhost:8000`, or `https://uday-ik.github.io` if you use the public page. See the checklist in [section 12](#12-instructor-checklist-for-a-live-class).
+**I want to clone the repository and run it on my own computer. What do I do?**
+Follow [section 8](#8-run-the-page-on-your-own-computer-windows-and-mac). Set Allowed Origins to `http://localhost:8000`, or to `https://uday-ik.github.io` if you use the public page. Publish your workflow only while you are using it, and switch it off afterwards.
 
 ## 11. Troubleshooting
 
@@ -235,31 +253,7 @@ Follow [section 8](#8-run-the-page-on-your-own-computer-windows-and-mac). Set Al
 | Works in the n8n editor but fails when published | A credential or setting is missing. Open the failed run in **Executions**. |
 | The model API says quota or billing | Add credit or check the key in your provider account. |
 
-## 12. Instructor checklist for a live class
-
-**The day before**
-- [ ] Open the n8n workflow and run the five test prompts in the n8n chat. All pass.
-- [ ] Add the Webhook node (section 3), publish, and copy the Production URL.
-- [ ] Run the terminal test (section 5) on the computer you will use in class. Mac or Windows.
-- [ ] Choose how to run the page (section 2). Set Allowed Origins to match (section 6), publish again, and test the page.
-- [ ] Check that the spending limit is set on your model key.
-- [ ] Do a full run on the class computer with the class internet connection.
-
-**Just before class**
-- [ ] Publish the workflow. Keep the Production URL out of the shared screen until you need it. Paste it from a private note.
-- [ ] Have the terminal command and the page ready in separate windows.
-
-**In class** (suggested order)
-1. Show the terminal call: request in, JSON out. This teaches what an API is.
-2. Show the page: the same call with an interface.
-3. Run one failing request (the wrong city, or a budget that fails) to show the guardrails.
-4. Show the **Executions** tab: every call is recorded.
-
-**After class**
-- [ ] Switch **Publish** off.
-- [ ] Change the webhook Path (section 10) if the URL appeared on screen.
-
-## 13. Test prompts and expected answers
+## 12. Test prompts and expected answers
 
 | Test | Request | Expected |
 |---|---|---|
@@ -271,7 +265,7 @@ Follow [section 8](#8-run-the-page-on-your-own-computer-windows-and-mac). Set Al
 
 The page has a button for each of these.
 
-## 14. How it works under the hood
+## 13. How it works under the hood
 
 **Request** (the page sends this):
 
